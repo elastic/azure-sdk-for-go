@@ -9,7 +9,6 @@ package azblob
 import (
 	"context"
 	"io"
-	"net/http"
 	"time"
 )
 
@@ -75,27 +74,25 @@ func (r *BlobDownloadResponse) Body(options *RetryReaderOptions) io.ReadCloser {
 	}
 
 	if options.MaxRetryRequests == 0 { // No additional retries
-		return r.RawResponse.Body
+		return r.blobClientDownloadResponse.Body
 	}
-	return NewRetryReader(r.ctx, r.RawResponse, r.getInfo, *options,
-		func(ctx context.Context, getInfo HTTPGetterInfo) (*http.Response, error) {
-			accessConditions := &BlobAccessConditions{
-				ModifiedAccessConditions: &ModifiedAccessConditions{IfMatch: &getInfo.ETag},
-			}
-			options := BlobDownloadOptions{
-				Offset:               &getInfo.Offset,
-				Count:                &getInfo.Count,
-				BlobAccessConditions: accessConditions,
-				CpkInfo:              options.CpkInfo,
-				//CpkScopeInfo: 			  o.CpkScopeInfo,
-			}
-			resp, err := r.b.Download(ctx, &options)
-			if err != nil {
-				return nil, err
-			}
-			return resp.RawResponse, err
-		},
-	)
+	return NewRetryReader(r.ctx, r.blobClientDownloadResponse.Body, r.getInfo, func(ctx context.Context, getInfo HTTPGetterInfo) (io.ReadCloser, error) {
+		accessConditions := &BlobAccessConditions{
+			ModifiedAccessConditions: &ModifiedAccessConditions{IfMatch: &getInfo.ETag},
+		}
+		options := BlobDownloadOptions{
+			Offset:               &getInfo.Offset,
+			Count:                &getInfo.Count,
+			BlobAccessConditions: accessConditions,
+			CpkInfo:              options.CpkInfo,
+			CpkScopeInfo:         options.CpkScopeInfo,
+		}
+		resp, err := r.b.Download(ctx, &options)
+		if err != nil {
+			return nil, err
+		}
+		return resp.blobClientDownloadResponse.Body, err
+	}, options)
 }
 
 // GetHTTPHeaders returns the user-modifiable properties for this blob.

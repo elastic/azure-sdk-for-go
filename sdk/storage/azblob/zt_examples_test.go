@@ -107,17 +107,15 @@ func Example() {
 	// List methods returns a pager object which can be used to iterate over the results of a paging operation.
 	// To iterate over a page use the NextPage(context.Context) to fetch the next page of results.
 	// PageResponse() can be used to iterate over the results of the specific page.
-	// Always check the Err() method after paging to see if an error was returned by the pager. A pager will return either an error or the page of results.
-	pager := containerClient.ListBlobsFlat(nil)
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
+	pager := containerClient.NewListBlobsFlatPager(nil)
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, v := range resp.Segment.BlobItems {
 			fmt.Println(*v.Name)
 		}
-	}
-
-	if err = pager.Err(); err != nil {
-		log.Fatal(err)
 	}
 
 	// Delete the blob.
@@ -246,18 +244,16 @@ func ExampleServiceClient_ListContainers() {
 			Deleted:  true, // Include deleted containers in the result as well
 		},
 	}
-	pager := serviceClient.ListContainers(&listContainersOptions)
+	pager := serviceClient.NewListContainersPager(&listContainersOptions)
 
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
-
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, container := range resp.ContainerItems {
 			fmt.Println(*container.Name)
 		}
-	}
-
-	if pager.Err() != nil {
-		log.Fatal(pager.Err())
 	}
 }
 
@@ -512,19 +508,18 @@ func ExampleContainerClient_ListBlobsFlat() {
 	containerClient := azblob.NewContainerClient(containerURL, cred, nil)
 	handleError(err)
 
-	pager := containerClient.ListBlobsFlat(&azblob.ContainerListBlobsFlatOptions{
+	pager := containerClient.NewListBlobsFlatPager(&azblob.ContainerListBlobsFlatOptions{
 		Include: []azblob.ListBlobsIncludeItem{azblob.ListBlobsIncludeItemSnapshots, azblob.ListBlobsIncludeItemVersions},
 	})
 
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, blob := range resp.Segment.BlobItems {
 			fmt.Println(*blob.Name)
 		}
-	}
-
-	if pager.Err() != nil {
-		log.Fatal(pager.Err())
 	}
 }
 
@@ -543,7 +538,7 @@ func ExampleContainerClient_ListBlobsHierarchy() {
 	handleError(err)
 
 	maxResults := int32(5)
-	pager := containerClient.ListBlobsHierarchy("/", &azblob.ContainerListBlobsHierarchyOptions{
+	pager := containerClient.NewListBlobsHierarchyPager("/", &azblob.ContainerListBlobsHierarchyOptions{
 		Include: []azblob.ListBlobsIncludeItem{
 			azblob.ListBlobsIncludeItemMetadata,
 			azblob.ListBlobsIncludeItemTags,
@@ -551,14 +546,14 @@ func ExampleContainerClient_ListBlobsHierarchy() {
 		MaxResults: &maxResults,
 	})
 
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, blob := range resp.ListBlobsHierarchySegmentResponse.Segment.BlobItems {
 			fmt.Println(*blob.Name)
 		}
-	}
-	if pager.Err() != nil {
-		log.Fatal(pager.Err())
 	}
 }
 
@@ -618,7 +613,7 @@ func ExampleContainerClient_SetAccessPolicy() {
 		_, err := containerClient.SetAccessPolicy(
 			context.TODO(),
 			&azblob.ContainerSetAccessPolicyOptions{
-				Access: azblob.PublicAccessTypeBlob.ToPtr(),
+				Access: to.Ptr(azblob.PublicAccessTypeBlob),
 			},
 		)
 		if err != nil {
@@ -839,39 +834,37 @@ func ExamplePageBlobClient() {
 	)
 	handleError(err)
 
-	//getPages, err := pageBlobClient.GetPageRanges(context.TODO(), azblob.HttpRange{Offset: 0, Count: }, nil)
+	//getPages, err := pageBlobClient.NewGetPageRangesPager(context.TODO(), azblob.HttpRange{Offset: 0, Count: }, nil)
 
-	pager := pageBlobClient.GetPageRanges(&azblob.PageBlobGetPageRangesOptions{
+	pager := pageBlobClient.NewGetPageRangesPager(&azblob.PageBlobGetPageRangesOptions{
 		PageRange: azblob.NewHttpRange(0, 10*internal.PageBlobPageBytes),
 	})
 
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, pr := range resp.PageList.PageRange {
 			fmt.Printf("Start=%d, End=%d\n", pr.Start, pr.End)
 		}
-	}
-
-	if pager.Err() != nil {
-		log.Fatal(pager.Err())
 	}
 
 	_, err = pageBlobClient.ClearPages(context.TODO(), azblob.HttpRange{Offset: 0, Count: 1 * internal.PageBlobPageBytes}, nil)
 	handleError(err)
 
-	pager = pageBlobClient.GetPageRanges(&azblob.PageBlobGetPageRangesOptions{
+	pager = pageBlobClient.NewGetPageRangesPager(&azblob.PageBlobGetPageRangesOptions{
 		PageRange: azblob.NewHttpRange(0, 10*internal.PageBlobPageBytes),
 	})
 
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, pr := range resp.PageList.PageRange {
 			fmt.Printf("Start=%d, End=%d\n", pr.Start, pr.End)
 		}
-	}
-
-	if pager.Err() != nil {
-		log.Fatal(pager.Err())
 	}
 
 	get, err := pageBlobClient.Download(context.TODO(), nil)
@@ -917,7 +910,7 @@ func ExampleContainerLeaseClient() {
 	// Now acquire a lease on the container.
 	// You can choose to pass an empty string for proposed ID so that the service automatically assigns one for you.
 	duration := int32(60)
-	acquireLeaseResponse, err := containerLeaseClient.AcquireLease(context.TODO(), &azblob.ContainerAcquireLeaseOptions{Duration: &duration})
+	acquireLeaseResponse, err := containerLeaseClient.Acquire(context.TODO(), &azblob.ContainerAcquireLeaseOptions{Duration: &duration})
 	handleError(err)
 	fmt.Println("The container is leased for delete operations with lease ID", *acquireLeaseResponse.LeaseID)
 
@@ -929,30 +922,30 @@ func ExampleContainerLeaseClient() {
 	fmt.Println("The container cannot be deleted while there is an active lease")
 
 	// We can release the lease now and the container can be deleted.
-	_, err = containerLeaseClient.ReleaseLease(context.TODO(), nil)
+	_, err = containerLeaseClient.Release(context.TODO(), nil)
 	handleError(err)
 	fmt.Println("The lease on the container is now released")
 
 	// Acquire a lease again to perform other operations.
 	// Duration is still 60
-	acquireLeaseResponse, err = containerLeaseClient.AcquireLease(context.TODO(), &azblob.ContainerAcquireLeaseOptions{Duration: &duration})
+	acquireLeaseResponse, err = containerLeaseClient.Acquire(context.TODO(), &azblob.ContainerAcquireLeaseOptions{Duration: &duration})
 	handleError(err)
 	fmt.Println("The container is leased again with lease ID", *acquireLeaseResponse.LeaseID)
 
 	// We can change the ID of an existing lease.
 	newLeaseID := "6b3e65e5-e1bb-4a3f-8b72-13e9bc9cd3bf"
-	changeLeaseResponse, err := containerLeaseClient.ChangeLease(context.TODO(),
+	changeLeaseResponse, err := containerLeaseClient.Change(context.TODO(),
 		&azblob.ContainerChangeLeaseOptions{ProposedLeaseID: to.Ptr(newLeaseID)})
 	handleError(err)
 	fmt.Println("The lease ID was changed to", *changeLeaseResponse.LeaseID)
 
 	// The lease can be renewed.
-	renewLeaseResponse, err := containerLeaseClient.RenewLease(context.TODO(), nil)
+	renewLeaseResponse, err := containerLeaseClient.Renew(context.TODO(), nil)
 	handleError(err)
 	fmt.Println("The lease was renewed with the same ID", *renewLeaseResponse.LeaseID)
 
 	// Finally, the lease can be broken and we could prevent others from acquiring a lease for a period of time
-	_, err = containerLeaseClient.BreakLease(context.TODO(), &azblob.ContainerBreakLeaseOptions{BreakPeriod: to.Ptr(int32(60))})
+	_, err = containerLeaseClient.Break(context.TODO(), &azblob.ContainerBreakLeaseOptions{BreakPeriod: to.Ptr(int32(60))})
 	handleError(err)
 	fmt.Println("The lease was broken, and nobody can acquire a lease for 60 seconds")
 }
@@ -1067,21 +1060,21 @@ func ExampleBlobAccessConditions() {
 				log.Fatal(err)
 			}
 			// The client must close the response body when finished with it
-			fmt.Printf("Success: %s\n", response.RawResponse.Status)
+			fmt.Printf("Success: %v\n", response)
 		}
 
 		// Close the response
 		if err != nil {
 			return
 		}
-		fmt.Printf("Success: %s\n", response.RawResponse.Status)
+		fmt.Printf("Success: %v\n", response)
 	}
 
-	showResultUpload := func(upload azblob.BlockBlobUploadResponse, err error) {
+	showResultUpload := func(response azblob.BlockBlobUploadResponse, err error) {
 		if err != nil {
 			log.Fatalf("Failure: %s\n", err.Error())
 		}
-		fmt.Print("Success: " + upload.RawResponse.Status + "\n")
+		fmt.Printf("Success: %v\n", response)
 	}
 
 	// Create the blob
@@ -1291,10 +1284,13 @@ func Example_blobSnapshots() {
 
 	// Show all blobs in the container with their snapshots:
 	// List the blob(s) in our container; since a container may hold millions of blobs, this is done 1 segment at a time.
-	pager := containerClient.ListBlobsFlat(nil)
+	pager := containerClient.NewListBlobsFlatPager(nil)
 
-	for pager.NextPage(context.TODO()) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, blob := range resp.Segment.BlobItems {
 			// Process the blobs returned
 			snapTime := "N/A"
@@ -1305,10 +1301,6 @@ func Example_blobSnapshots() {
 		}
 	}
 
-	if err := pager.Err(); err != nil {
-		log.Fatal(err)
-	}
-
 	// Promote read-only snapshot to writable base blob:
 	_, err = baseBlobClient.StartCopyFromURL(context.TODO(), snapshotBlobClient.URL(), nil)
 	handleError(err)
@@ -1317,7 +1309,7 @@ func Example_blobSnapshots() {
 	// DeleteSnapshotsOptionOnly deletes all the base blob's snapshots but not the base blob itself
 	// DeleteSnapshotsOptionInclude deletes the base blob & all its snapshots.
 	// DeleteSnapshotOptionNone produces an error if the base blob has any snapshots.
-	_, err = baseBlobClient.Delete(context.TODO(), &azblob.BlobDeleteOptions{DeleteSnapshots: azblob.DeleteSnapshotsOptionTypeInclude.ToPtr()})
+	_, err = baseBlobClient.Delete(context.TODO(), &azblob.BlobDeleteOptions{DeleteSnapshots: to.Ptr(azblob.DeleteSnapshotsOptionTypeInclude)})
 	handleError(err)
 }
 

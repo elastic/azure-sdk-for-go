@@ -70,12 +70,12 @@ func (s *azblobUnrecordedTestSuite) TestListContainersBasic() {
 	_require.Nil(err)
 	prefix := containerPrefix
 	listOptions := ServiceListContainersOptions{Prefix: &prefix, Include: ListContainersDetail{Metadata: true}}
-	pager := svcClient.ListContainers(&listOptions)
+	pager := svcClient.NewListContainersPager(&listOptions)
 
 	count := 0
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
-
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 		for _, container := range resp.ContainerItems {
 			_require.NotNil(container.Name)
 
@@ -99,9 +99,11 @@ func (s *azblobUnrecordedTestSuite) TestListContainersBasic() {
 				_require.EqualValues(unwrappedMeta, md)
 			}
 		}
+		if err != nil {
+			break
+		}
 	}
 
-	_require.Nil(pager.Err())
 	_require.Nil(err)
 	_require.GreaterOrEqual(count, 0)
 }
@@ -129,11 +131,12 @@ func (s *azblobUnrecordedTestSuite) TestListContainersBasicUsingConnectionString
 	_require.Nil(err)
 	prefix := containerPrefix
 	listOptions := ServiceListContainersOptions{Prefix: &prefix, Include: ListContainersDetail{Metadata: true}}
-	pager := svcClient.ListContainers(&listOptions)
+	pager := svcClient.NewListContainersPager(&listOptions)
 
 	count := 0
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 
 		for _, container := range resp.ContainerItems {
 			_require.NotNil(container.Name)
@@ -158,9 +161,11 @@ func (s *azblobUnrecordedTestSuite) TestListContainersBasicUsingConnectionString
 				_require.EqualValues(unwrappedMeta, md)
 			}
 		}
+		if err != nil {
+			break
+		}
 	}
 
-	_require.Nil(pager.Err())
 	_require.Nil(err)
 	_require.GreaterOrEqual(count, 0)
 }
@@ -199,7 +204,7 @@ func (s *azblobUnrecordedTestSuite) TestListContainersBasicUsingConnectionString
 //	count := 0
 //	results := make([]ContainerItem, 0)
 //
-//	pager := sa.ListContainers(&listOptions)
+//	pager := sa.NewListContainersPager(&listOptions)
 //
 //	for pager.NextPage(ctx) {
 //		for _, container := range *pager.PageResponse().EnumerationResults.ContainerItems {
@@ -246,17 +251,20 @@ func (s *azblobTestSuite) TestAccountListContainersEmptyPrefix() {
 	defer deleteContainer(_require, containerClient2)
 
 	count := 0
-	pager := svcClient.ListContainers(nil)
+	pager := svcClient.NewListContainersPager(nil)
 
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 
 		for _, container := range resp.ContainerItems {
 			count++
 			_require.NotNil(container.Name)
 		}
+		if err != nil {
+			break
+		}
 	}
-	_require.Nil(pager.Err())
 	_require.GreaterOrEqual(count, 2)
 }
 
@@ -271,7 +279,7 @@ func (s *azblobTestSuite) TestAccountListContainersEmptyPrefix() {
 ////		options := ServiceListContainersOptions{MaxResults: &num}
 ////
 ////		// getting the pager should still work
-////		pager, err := svcClient.ListContainers(context.Background(), 100, time.Hour, &options)
+////		pager, err := svcClient.NewListContainersPager(context.Background(), 100, time.Hour, &options)
 ////		_require.Nil(err)
 ////
 ////		// getting the next page should fail
@@ -290,7 +298,7 @@ func (s *azblobTestSuite) TestAccountListContainersEmptyPrefix() {
 ////	prefix := containerPrefix + "abc"
 ////	maxResults := int32(2)
 ////	options := ServiceListContainersOptions{Prefix: &prefix, MaxResults: &maxResults}
-////	pager, err := svcClient.ListContainers(&options)
+////	pager, err := svcClient.NewListContainersPager(&options)
 ////	_require.Nil(err)
 ////
 ////	// getting the next page should work

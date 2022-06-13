@@ -255,7 +255,7 @@ func (s *azblobTestSuite) TestContainerGetPermissionsPublicAccessNotNone() {
 //	_require.Nil(err)
 //
 //	// If we cannot access a blob's data, we will also not be able to enumerate blobs
-//	p := containerClient2.ListBlobsFlat(nil)
+//	p := containerClient2.NewListBlobsFlatPager(nil)
 //	p.NextPage(ctx)
 //	err = p.Err() // grab the next page
 //	validateStorageErrorCode(c, err, StorageErrorCodeNoAuthenticationInformation)
@@ -358,14 +358,14 @@ func (s *azblobTestSuite) TestContainerSetPermissionsPublicAccessContainer() {
 ////
 ////	// Verifies that the SAS can access the resource
 ////	sasContainer := sasBlobServiceURL.NewContainerClient(containerName)
-////	resp, err := sasContainer.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{})
+////	resp, err := sasContainer.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{})
 ////	_require.Nil(err)
 ////	_assert(resp.Segment.BlobItems[0].Name, chk.Equals, blobName)
 ////
 ////	// Verifies that successful sas access is not just because it's public
 ////	anonymousBlobService := NewServiceURL(svcClient.URL(), sasPipeline)
 ////	anonymousContainer := anonymousBlobService.NewContainerClient(containerName)
-////	_, err = anonymousContainer.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{})
+////	_, err = anonymousContainer.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{})
 ////	validateStorageErrorCode(c, err, StorageErrorCodeNoAuthenticationInformation)
 ////}
 
@@ -642,7 +642,6 @@ func (s *azblobTestSuite) TestContainerSetPermissionsIfModifiedSinceTrue() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
 	defer deleteContainer(_require, containerClient)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, -10)
@@ -674,7 +673,7 @@ func (s *azblobTestSuite) TestContainerSetPermissionsIfModifiedSinceFalse() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	//_require.Equal(cResp.RawResponse.StatusCode, 201)
 	defer deleteContainer(_require, containerClient)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, 10)
@@ -704,7 +703,7 @@ func (s *azblobTestSuite) TestContainerSetPermissionsIfUnModifiedSinceTrue() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	//_require.Equal(cResp.RawResponse.StatusCode, 201)
 	defer deleteContainer(_require, containerClient)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, 10)
@@ -736,7 +735,7 @@ func (s *azblobTestSuite) TestContainerSetPermissionsIfUnModifiedSinceFalse() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	//_require.Equal(cResp.RawResponse.StatusCode, 201)
 	defer deleteContainer(_require, containerClient)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, -10)

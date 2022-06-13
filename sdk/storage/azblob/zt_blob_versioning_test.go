@@ -104,7 +104,7 @@ func (s *azblobTestSuite) TestAppendBlobGetPropertiesUsingVID() {
 //	_require.Nil(err)
 //	_require.NotNil(resp.VersionID)
 //
-//	pager := containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+//	pager := containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 //		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemMetadata},
 //	})
 //
@@ -155,9 +155,8 @@ func (s *azblobTestSuite) TestCreateAndDownloadBlobSpecialCharactersWithVID() {
 		_require.Nil(err)
 		_require.NotEqual(*dResp.Version, "")
 		_require.EqualValues(string(d1), string(data[i]))
-		versionId := dResp.RawResponse.Header.Get("x-ms-version-id")
-		_require.NotNil(versionId)
-		_require.Equal(versionId, *resp.VersionID)
+		_require.NotNil(dResp.VersionID)
+		_require.Equal(*dResp.VersionID, *resp.VersionID)
 	}
 }
 
@@ -189,7 +188,7 @@ func (s *azblobTestSuite) TestCreateAndDownloadBlobSpecialCharactersWithVID() {
 //	_require.Nil(err)
 //	_require.NotNil(uploadResp.VersionID)
 //
-//	listPager := containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+//	listPager := containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 //		Include: &[]ListBlobsIncludeItem{ListBlobsIncludeItemVersions},
 //	})
 //
@@ -215,7 +214,7 @@ func (s *azblobTestSuite) TestCreateAndDownloadBlobSpecialCharactersWithVID() {
 //	_require.Nil(err)
 //	_assert(deleteResp.StatusCode(), chk.Equals, 202)
 //
-//	listBlobsResp, err = containerClient.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Versions: true}})
+//	listBlobsResp, err = containerClient.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Versions: true}})
 //	_require.Nil(err)
 //	_assert(listBlobsResp.Segment.BlobItems, chk.NotNil)
 //	if len(listBlobsResp.Segment.BlobItems) != 1 {
@@ -264,7 +263,7 @@ func (s *azblobTestSuite) TestCreateAndDownloadBlobSpecialCharactersWithVID() {
 //	deleteResp, err := sbURL.Delete(ctx, DeleteSnapshotsOptionNone, BlobAccessConditions{})
 //	_assert(deleteResp, chk.IsNil)
 //
-//	listBlobResp, err := containerClient.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Versions: true}})
+//	listBlobResp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Versions: true}})
 //	_require.Nil(err)
 //	for _, blob := range listBlobResp.Segment.BlobItems {
 //		_assert(blob.VersionID, chk.Not(chk.Equals), versionId)
@@ -294,37 +293,43 @@ func (s *azblobTestSuite) TestDeleteSpecificBlobVersion() {
 		versions = append(versions, *uploadResp.VersionID)
 	}
 
-	listPager := containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+	listPager := containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemVersions},
 	})
 
 	found := make([]*BlobItemInternal, 0)
-	for listPager.NextPage(ctx) {
-		resp := listPager.PageResponse()
+	for listPager.More() {
+		resp, err := listPager.NextPage(ctx)
+		_require.Nil(err)
+		if err != nil {
+			break
+		}
 		found = append(found, resp.Segment.BlobItems...)
 	}
-	_require.Nil(listPager.Err())
 	_require.Len(found, 5)
 
 	// Deleting the 2nd and 3rd versions
 	for i := 0; i < 3; i++ {
 		bbClientWithVersionID, err := bbClient.WithVersionID(versions[i])
 		_require.Nil(err)
-		deleteResp, err := bbClientWithVersionID.Delete(ctx, nil)
+		_, err = bbClientWithVersionID.Delete(ctx, nil)
 		_require.Nil(err)
-		_require.Equal(deleteResp.RawResponse.StatusCode, 202)
+		//_require.Equal(deleteResp.RawResponse.StatusCode, 202)
 	}
 
-	listPager = containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+	listPager = containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemVersions},
 	})
 
 	found = make([]*BlobItemInternal, 0)
-	for listPager.NextPage(ctx) {
-		resp := listPager.PageResponse()
+	for listPager.More() {
+		resp, err := listPager.NextPage(ctx)
+		_require.Nil(err)
+		if err != nil {
+			break
+		}
 		found = append(found, resp.Segment.BlobItems...)
 	}
-	_require.Nil(listPager.Err())
 	_require.Len(found, 2)
 
 	for i := 3; i < 5; i++ {
@@ -438,7 +443,7 @@ func (s *azblobTestSuite) TestDeleteSpecificBlobVersion() {
 //	_assert(csResp.Response().StatusCode, chk.Equals, 201)
 //	_assert(csResp.Response().Header.Get("x-ms-version-id"), chk.NotNil)
 //
-//	listBlobResp, err := containerClient.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Snapshots: true}})
+//	listBlobResp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Snapshots: true}})
 //	_require.Nil(err)
 //	_assert(listBlobResp.rawResponse.Header.Get("x-ms-request-id"), chk.NotNil)
 //	if len(listBlobResp.Segment.BlobItems) < 2 {
@@ -450,7 +455,7 @@ func (s *azblobTestSuite) TestDeleteSpecificBlobVersion() {
 //	_assert(deleteResp.Response().StatusCode, chk.Equals, 202)
 //	_assert(deleteResp.Response().Header.Get("x-ms-version-id"), chk.NotNil)
 //
-//	listBlobResp, err = containerClient.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Snapshots: true, Versions: true}})
+//	listBlobResp, err = containerClient.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Snapshots: true, Versions: true}})
 //	_require.Nil(err)
 //	_assert(listBlobResp.rawResponse.Header.Get("x-ms-request-id"), chk.NotNil)
 //	if len(listBlobResp.Segment.BlobItems) == 0 {
@@ -483,7 +488,7 @@ func (s *azblobTestSuite) TestPutBlockListReturnsVID() {
 		base64BlockIDs[index] = blockIDIntToBase64(index)
 		resp, err := bbClient.StageBlock(ctx, base64BlockIDs[index], internal.NopCloser(strings.NewReader(d)), nil)
 		_require.Nil(err)
-		_require.Equal(resp.RawResponse.StatusCode, 201)
+		// _require.Equal(resp.RawResponse.StatusCode, 201)
 		_require.NotNil(resp.Version)
 		_require.NotEqual(*resp.Version, "")
 	}
@@ -521,41 +526,47 @@ func (s *azblobUnrecordedTestSuite) TestCreateBlockBlobReturnsVID() {
 	// Prepare source blob for copy.
 	uploadResp, err := bbClient.Upload(ctx, internal.NopCloser(r), nil)
 	_require.Nil(err)
-	_require.Equal(uploadResp.RawResponse.StatusCode, 201)
+	// _require.Equal(uploadResp.RawResponse.StatusCode, 201)
 	_require.NotNil(uploadResp.VersionID)
 
 	csResp, err := bbClient.CreateSnapshot(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(csResp.RawResponse.StatusCode, 201)
+	//_require.Equal(csResp.RawResponse.StatusCode, 201)
 	_require.NotNil(csResp.VersionID)
 
-	pager := containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+	pager := containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemSnapshots},
 	})
 
 	found := make([]*BlobItemInternal, 0)
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 		found = append(found, resp.Segment.BlobItems...)
+		if err != nil {
+			break
+		}
 	}
-	_require.Nil(pager.Err())
 	_require.Len(found, 2)
 
 	deleteSnapshotsOnly := DeleteSnapshotsOptionTypeOnly
-	deleteResp, err := bbClient.Delete(ctx, &BlobDeleteOptions{DeleteSnapshots: &deleteSnapshotsOnly})
+	_, err = bbClient.Delete(ctx, &BlobDeleteOptions{DeleteSnapshots: &deleteSnapshotsOnly})
 	_require.Nil(err)
-	_require.Equal(deleteResp.RawResponse.StatusCode, 202)
+	//_require.Equal(deleteResp.RawResponse.StatusCode, 202)
 
-	pager = containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+	pager = containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemSnapshots, ListBlobsIncludeItemVersions},
 	})
 
 	found = make([]*BlobItemInternal, 0)
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 		found = append(found, resp.Segment.BlobItems...)
+		if err != nil {
+			break
+		}
 	}
-	_require.Nil(pager.Err())
 	_require.NotEqual(len(found), 0)
 }
 
@@ -583,11 +594,10 @@ func (s *azblobTestSuite) TestCreatePageBlobReturnsVID() {
 	}
 	putResp, err := pbClob.UploadPages(context.Background(), r, &uploadPagesOptions)
 	_require.Nil(err)
-	_require.Equal(putResp.RawResponse.StatusCode, 201)
+	//_require.Equal(putResp.RawResponse.StatusCode, 201)
 	_require.Equal(putResp.LastModified.IsZero(), false)
 	_require.NotNil(putResp.ETag)
-	_require.NotEqual(putResp.Version, "")
-	_require.NotNil(putResp.RawResponse.Header.Get("x-ms-version-id"))
+	_require.NotEqual(*putResp.Version, "")
 
 	gpResp, err := pbClob.GetProperties(ctx, nil)
 	_require.Nil(err)

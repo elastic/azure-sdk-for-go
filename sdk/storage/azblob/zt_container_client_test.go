@@ -218,7 +218,7 @@ func (s *azblobTestSuite) TestContainerCreateEmptyMetadata() {
 //
 //	// Anonymous enumeration should be valid with container access
 //	containerClient2, _ := NewContainerClient(containerClient.URL(), credential, nil)
-//	pager := containerClient2.ListBlobsFlat(nil)
+//	pager := containerClient2.NewListBlobsFlatPager(nil)
 //
 //	for pager.NextPage(ctx) {
 //		resp := pager.PageResponse()
@@ -268,7 +268,7 @@ func (s *azblobTestSuite) TestContainerCreateEmptyMetadata() {
 //	containerClient2, err := NewContainerClient(containerClient.URL(), azcore.AnonymousCredential(), nil)
 //	_require.Nil(err)
 //
-//	pager := containerClient2.ListBlobsFlat(nil)
+//	pager := containerClient2.NewListBlobsFlatPager(nil)
 //
 //	_require.Equal(pager.NextPage(ctx), false)
 //	_require.NotNil(pager.Err())
@@ -308,10 +308,15 @@ func (s *azblobTestSuite) TestContainerCreateAccessNone() {
 	containerClient2 := NewContainerClientWithNoCredential(containerClient.URL(), nil)
 	_require.Nil(err)
 
-	pager := containerClient2.ListBlobsFlat(nil)
+	pager := containerClient2.NewListBlobsFlatPager(nil)
 
-	_require.Equal(pager.NextPage(ctx), false)
-	_require.NotNil(pager.Err())
+	for pager.More() {
+		_, err := pager.NextPage(ctx)
+		_require.NotNil(err)
+		if err != nil {
+			break
+		}
+	}
 
 	// Blob data is not public
 	blobURL2 := containerClient2.NewBlockBlobClient(blobPrefix)
@@ -477,7 +482,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfModifiedSinceTrue() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	// _require.Equal(cResp.RawResponse.StatusCode, 201)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, -10)
 
@@ -505,7 +510,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfModifiedSinceFalse() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	// _require.Equal(cResp.RawResponse.StatusCode, 201)
 	defer deleteContainer(_require, containerClient)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, 10)
@@ -535,7 +540,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfUnModifiedSinceTrue() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	// _require.Equal(cResp.RawResponse.StatusCode, 201)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, 10)
 
@@ -564,7 +569,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfUnModifiedSinceFalse() {
 
 	cResp, err := containerClient.Create(ctx, nil)
 	_require.Nil(err)
-	_require.Equal(cResp.RawResponse.StatusCode, 201)
+	// _require.Equal(cResp.RawResponse.StatusCode, 201)
 	defer deleteContainer(_require, containerClient)
 
 	currentTime := getRelativeTimeFromAnchor(cResp.Date, -10)
@@ -608,7 +613,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfUnModifiedSinceFalse() {
 ////	containerListBlobFlatSegmentOptions := ContainerListBlobsFlatOptions{
 ////		Prefix: &prefix,
 ////	}
-////	listResponse, errChan := containerClient.ListBlobsFlat(ctx, 3, 0, &containerListBlobFlatSegmentOptions)
+////	listResponse, errChan := containerClient.NewListBlobsFlatPager(ctx, 3, 0, &containerListBlobFlatSegmentOptions)
 ////	_assert(<- errChan, chk.IsNil)
 ////	_assert(listResponse, chk.IsNil)
 ////}
@@ -623,7 +628,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfUnModifiedSinceFalse() {
 //	containerListBlobFlatSegmentOptions := ContainerListBlobsFlatOptions{
 //		Prefix: &prefix,
 //	}
-//	pager := containerClient.ListBlobsFlat(&containerListBlobFlatSegmentOptions)
+//	pager := containerClient.NewListBlobsFlatPager(&containerListBlobFlatSegmentOptions)
 //
 //	count := 0
 //
@@ -651,7 +656,7 @@ func (s *azblobTestSuite) TestContainerDeleteIfUnModifiedSinceFalse() {
 //		_, blobNames[idx] = createNewBlockBlobWithPrefix(c, containerClient, prefix)
 //	}
 //
-//	pager := containerClient.ListBlobsHierarchy("/", nil)
+//	pager := containerClient.NewListBlobsHierarchyPager("/", nil)
 //
 //	count := 0
 //
@@ -699,19 +704,21 @@ func (s *azblobTestSuite) TestContainerListBlobsWithSnapshots() {
 	listBlobFlatSegmentOptions := ContainerListBlobsFlatOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemSnapshots},
 	}
-	pager := containerClient.ListBlobsFlat(&listBlobFlatSegmentOptions)
+	pager := containerClient.NewListBlobsFlatPager(&listBlobFlatSegmentOptions)
 
 	wasFound := false // hold the for loop accountable for finding the blob and it's snapshot
-	for pager.NextPage(ctx) {
-		_require.Nil(pager.Err())
-
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 
 		for _, blob := range resp.Segment.BlobItems {
 			if *blob.Name == snapBlobName && blob.Snapshot != nil {
 				wasFound = true
 				_require.Equal(*blob.Snapshot, *snap.Snapshot)
 			}
+		}
+		if err != nil {
+			break
 		}
 	}
 	_require.Equal(wasFound, true)
@@ -735,11 +742,16 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 		createNewBlockBlob(_require, blobName, containerClient)
 	}
 
-	pager := containerClient.ListBlobsHierarchy("^", nil)
+	pager := containerClient.NewListBlobsHierarchyPager("^", nil)
 
-	pager.NextPage(ctx)
-	_require.Nil(pager.Err())
-	_require.Nil(pager.PageResponse().Segment.BlobPrefixes)
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
+		_require.Nil(resp.Segment.BlobPrefixes)
+		if err != nil {
+			break
+		}
+	}
 }
 
 ////func (s *azblobTestSuite) TestContainerListBlobsIncludeTypeMetadata() {
@@ -751,7 +763,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	_, err := blobMetadata.SetMetadata(ctx, Metadata{"field": "value"}, BlobAccessConditions{}, ClientProvidedKeyOptions{})
 ////	_require.Nil(err)
 ////
-////	resp, err := container.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Metadata: true}})
+////	resp, err := container.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{Details: BlobListingDetails{Metadata: true}})
 ////
 ////	_require.Nil(err)
 ////	_assert(resp.Segment.BlobItems[0].Name, chk.Equals, blobNameNoMetadata)
@@ -768,7 +780,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	_, err := blob.CreateSnapshot(ctx, Metadata{}, BlobAccessConditions{}, ClientProvidedKeyOptions{})
 ////	_require.Nil(err)
 ////
-////	resp, err := containerClient.ListBlobsFlat(ctx, Marker{},
+////	resp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{},
 ////		ListBlobsSegmentOptions{Details: BlobListingDetails{Snapshots: true}})
 ////
 ////	_require.Nil(err)
@@ -788,7 +800,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	_, err := blobCopyURL.StartCopyFromURL(ctx, bbClient.URL(), Metadata{}, ModifiedAccessConditions{}, BlobAccessConditions{}, DefaultAccessTier, nil)
 ////	_require.Nil(err)
 ////
-////	resp, err := containerClient.ListBlobsFlat(ctx, Marker{},
+////	resp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{},
 ////		ListBlobsSegmentOptions{Details: BlobListingDetails{Copy: true}})
 ////
 ////	// These are sufficient to show that the blob copy was in fact included
@@ -810,7 +822,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	_, err := bbClient.StageBlock(ctx, blockID, strings.NewReader(blockBlobDefaultData), LeaseAccessConditions{}, nil, ClientProvidedKeyOptions{})
 ////	_require.Nil(err)
 ////
-////	resp, err := containerClient.ListBlobsFlat(ctx, Marker{},
+////	resp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{},
 ////		ListBlobsSegmentOptions{Details: BlobListingDetails{UncommittedBlobs: true}})
 ////
 ////	_require.Nil(err)
@@ -823,7 +835,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	defer deleteContainer(_require, containerClient)
 ////	bbClient, _ := createNewBlockBlob(c, containerClient)
 ////
-////	resp, err := containerClient.ListBlobsFlat(ctx, Marker{},
+////	resp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{},
 ////		ListBlobsSegmentOptions{Details: BlobListingDetails{Versions: true, Deleted: true}})
 ////	_require.Nil(err)
 ////	_assert(resp.Segment.BlobItems, chk.HasLen, 1)
@@ -831,7 +843,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	_, err = bbClient.Delete(ctx, DeleteSnapshotsOptionInclude, BlobAccessConditions{})
 ////	_require.Nil(err)
 ////
-////	resp, err = containerClient.ListBlobsFlat(ctx, Marker{},
+////	resp, err = containerClient.NewListBlobsFlatPager(ctx, Marker{},
 ////		ListBlobsSegmentOptions{Details: BlobListingDetails{Versions: true, Deleted: true}})
 ////	_require.Nil(err)
 ////	if len(resp.Segment.BlobItems) != 1 {
@@ -865,7 +877,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////
 ////	_, err = blobURL3.Delete(ctx, DeleteSnapshotsOptionNone, BlobAccessConditions{})
 ////
-////	resp, err := containerClient.ListBlobsFlat(ctx, Marker{},
+////	resp, err := containerClient.NewListBlobsFlatPager(ctx, Marker{},
 ////		ListBlobsSegmentOptions{Details: BlobListingDetails{Snapshots: true, Copy: true, Deleted: true, Versions: true}})
 ////
 ////	_require.Nil(err)
@@ -892,7 +904,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	containerClient, _ := createNewContainer(c, svcClient)
 ////
 ////	defer deleteContainer(_require, containerClient)
-////	_, err := containerClient.ListBlobsFlat(ctx, Marker{}, ListBlobsSegmentOptions{MaxResults: -2})
+////	_, err := containerClient.NewListBlobsFlatPager(ctx, Marker{}, ListBlobsSegmentOptions{MaxResults: -2})
 ////	_assert(err, chk.Not(chk.IsNil))
 ////}
 //
@@ -903,7 +915,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	createNewBlockBlob(c, containerClient)
 ////
 ////	maxResults := int32(0)
-////	resp, errChan := containerClient.ListBlobsFlat(ctx, 1, 0, &ContainerListBlobsFlatOptions{MaxResults: &maxResults})
+////	resp, errChan := containerClient.NewListBlobsFlatPager(ctx, 1, 0, &ContainerListBlobsFlatOptions{MaxResults: &maxResults})
 ////
 ////	_assert(<-errChan, chk.IsNil)
 ////	_assert(resp, chk.HasLen, 1)
@@ -918,7 +930,7 @@ func (s *azblobTestSuite) TestContainerListBlobsInvalidDelimiter() {
 ////	createNewBlockBlobWithPrefix(c, containerClient, "b")
 ////
 ////	maxResults := int32(1)
-////	resp, errChan := containerClient.ListBlobsFlat(ctx, 3, 0, &ContainerListBlobsFlatOptions{MaxResults: &maxResults})
+////	resp, errChan := containerClient.NewListBlobsFlatPager(ctx, 3, 0, &ContainerListBlobsFlatOptions{MaxResults: &maxResults})
 ////	_assert(<- errChan, chk.IsNil)
 ////	_assert(resp, chk.HasLen, 1)
 ////	_assert((<- resp).Name, chk.Equals, blobName)
@@ -943,21 +955,23 @@ func (s *azblobTestSuite) TestContainerListBlobsMaxResultsExact() {
 	createNewBlockBlob(_require, blobNames[1], containerClient)
 
 	maxResult := int32(2)
-	pager := containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+	pager := containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 		MaxResults: &maxResult,
 	})
 
 	nameMap := blobListToMap(blobNames)
 
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 
 		for _, blob := range resp.Segment.BlobItems {
 			_require.Equal(nameMap[*blob.Name], true)
 		}
+		if err != nil {
+			break
+		}
 	}
-
-	_require.Nil(pager.Err())
 }
 
 func (s *azblobTestSuite) TestContainerListBlobsMaxResultsSufficient() {
@@ -983,19 +997,21 @@ func (s *azblobTestSuite) TestContainerListBlobsMaxResultsSufficient() {
 	containerListBlobFlatSegmentOptions := ContainerListBlobsFlatOptions{
 		MaxResults: &maxResult,
 	}
-	pager := containerClient.ListBlobsFlat(&containerListBlobFlatSegmentOptions)
+	pager := containerClient.NewListBlobsFlatPager(&containerListBlobFlatSegmentOptions)
 
 	nameMap := blobListToMap(blobNames)
 
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
 
 		for _, blob := range resp.Segment.BlobItems {
 			_require.Equal(nameMap[*blob.Name], true)
 		}
+		if err != nil {
+			break
+		}
 	}
-
-	_require.Nil(pager.Err())
 }
 
 func (s *azblobTestSuite) TestContainerListBlobsNonExistentContainer() {
@@ -1010,10 +1026,14 @@ func (s *azblobTestSuite) TestContainerListBlobsNonExistentContainer() {
 	containerName := generateContainerName(testName)
 	containerClient := getContainerClient(containerName, svcClient)
 
-	pager := containerClient.ListBlobsFlat(nil)
-
-	pager.NextPage(ctx)
-	_require.NotNil(pager.Err())
+	pager := containerClient.NewListBlobsFlatPager(nil)
+	for pager.More() {
+		_, err := pager.NextPage(ctx)
+		_require.NotNil(err)
+		if err != nil {
+			break
+		}
+	}
 }
 
 func (s *azblobTestSuite) TestContainerGetPropertiesAndMetadataNoMetadata() {
@@ -1250,38 +1270,45 @@ func (s *azblobTestSuite) TestListBlobIncludeMetadata() {
 	blobName := generateBlobName(testName)
 	for i := 0; i < 6; i++ {
 		bbClient := getBlockBlobClient(blobName+strconv.Itoa(i), containerClient)
-		cResp, err := bbClient.Upload(ctx, internal.NopCloser(strings.NewReader(blockBlobDefaultData)), &BlockBlobUploadOptions{Metadata: basicMetadata})
+		_, err = bbClient.Upload(ctx, internal.NopCloser(strings.NewReader(blockBlobDefaultData)), &BlockBlobUploadOptions{Metadata: basicMetadata})
 		_require.Nil(err)
-		_require.Equal(cResp.RawResponse.StatusCode, 201)
+		// _require.Equal(cResp.RawResponse.StatusCode, 201)
 	}
 
-	pager := containerClient.ListBlobsFlat(&ContainerListBlobsFlatOptions{
+	pager := containerClient.NewListBlobsFlatPager(&ContainerListBlobsFlatOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemMetadata},
 	})
 
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		_require.Nil(err)
+
 		_require.Len(resp.ListBlobsFlatSegmentResponse.Segment.BlobItems, 6)
 		for _, blob := range resp.ListBlobsFlatSegmentResponse.Segment.BlobItems {
 			_require.NotNil(blob.Metadata)
 			_require.Len(blob.Metadata, len(basicMetadata))
 		}
+		if err != nil {
+			break
+		}
 	}
-	_require.Nil(pager.Err())
 
 	//----------------------------------------------------------
 
-	pager1 := containerClient.ListBlobsHierarchy("/", &ContainerListBlobsHierarchyOptions{
+	pager1 := containerClient.NewListBlobsHierarchyPager("/", &ContainerListBlobsHierarchyOptions{
 		Include: []ListBlobsIncludeItem{ListBlobsIncludeItemMetadata, ListBlobsIncludeItemTags},
 	})
 
-	for pager1.NextPage(ctx) {
-		resp := pager1.PageResponse()
-		_require.Len(resp.ListBlobsHierarchySegmentResponse.Segment.BlobItems, 6)
-		for _, blob := range resp.ListBlobsHierarchySegmentResponse.Segment.BlobItems {
+	for pager1.More() {
+		resp, err := pager1.NextPage(ctx)
+		_require.Nil(err)
+		if err != nil {
+			break
+		}
+		_require.Len(resp.Segment.BlobItems, 6)
+		for _, blob := range resp.Segment.BlobItems {
 			_require.NotNil(blob.Metadata)
 			_require.Len(blob.Metadata, len(basicMetadata))
 		}
 	}
-	_require.Nil(pager1.Err())
 }
