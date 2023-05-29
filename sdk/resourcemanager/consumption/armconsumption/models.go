@@ -2815,7 +2815,9 @@ type UsageDetailsClientListOptions struct {
 	// specifies a starting point to use for subsequent calls.
 	Skiptoken *string
 	// May be used to limit the number of results to the most recent N usageDetails.
-	Top *int32
+	Top       *int32
+	StartDate *string
+	EndDate   *string
 }
 
 // UsageDetailsListResult - Result of listing usage details. It contains a list of available usage details in reverse chronological
