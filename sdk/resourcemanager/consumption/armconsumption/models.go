@@ -2815,7 +2815,18 @@ type UsageDetailsClientListOptions struct {
 	// specifies a starting point to use for subsequent calls.
 	Skiptoken *string
 	// May be used to limit the number of results to the most recent N usageDetails.
-	Top *int32
+	Top       *int32
+	// According to the MS docs [1], modern customers with a Microsoft Customer Agreement (MCA) must
+	// use the `StartDate` and `EndDate` parameters to get the usage details for a specific date range.
+	//
+	// Unfortunately, these parameters are not included in the API spec file [2], so
+	// they must be manually added to the generated client.
+	//
+	// [1]: https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/manage-automation#get-usage-details-for-a-scope-during-specific-date-range
+	// [2]: https://github.com/Azure/azure-rest-api-specs/blob/main/specification/consumption/resource-manager/Microsoft.Consumption/stable/2023-11-01/consumption.json#L106-L147
+	//
+	StartDate *string
+	EndDate   *string
 }
 
 // UsageDetailsListResult - Result of listing usage details. It contains a list of available usage details in reverse chronological
