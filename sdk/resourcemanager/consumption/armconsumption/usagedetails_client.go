@@ -71,7 +71,35 @@ func (client *UsageDetailsClient) NewListPager(scope string, options *UsageDetai
 			if page == nil {
 				req, err = client.listCreateRequest(ctx, scope, options)
 			} else {
-				req, err = runtime.NewRequest(ctx, http.MethodGet, *page.NextLink)
+				//
+				// URL encodes `page.NextLink` to avoid 400 error.
+				//
+				// When there are more than 1000 usage details items, the
+				// Consumption SDK paginates the response. Each response page
+				// contains a 'next link' to the following page.
+				//
+				// The `$filter` query parameters contain a date range expression
+				// like the following:
+				//
+				// ```text
+				// properties/usageStart eq '2023-11-16' and properties/usageEnd eq '2023-11-16'
+				// ```
+				//
+				// Unfortunately, the Azure service adds the query parameter `$filter`
+				// value to the 'next link' without URL encoding it. Since one of the
+				// parameters, `$filter` contains space, it breaks the URL,
+				// causing the following parameters to get lost.
+				//
+				// **Possible solutions**
+				//
+				// As a workaround, we can encode the 'next link' URL to
+				// avoid the 400 error.
+				//					
+				nextLink, err := runtime.EncodeQueryParams(*page.NextLink)
+				if err != nil {
+					return UsageDetailsClientListResponse{}, err
+				}
+				req, err = runtime.NewRequest(ctx, http.MethodGet, nextLink)
 			}
 			if err != nil {
 				return UsageDetailsClientListResponse{}, err
@@ -108,6 +136,13 @@ func (client *UsageDetailsClient) listCreateRequest(ctx context.Context, scope s
 	}
 	if options != nil && options.Top != nil {
 		reqQP.Set("$top", strconv.FormatInt(int64(*options.Top), 10))
+	}
+	// startDate and endDate support
+	if options != nil && options.StartDate != nil {
+		reqQP.Set("startDate", *options.StartDate)
+	}
+	if options != nil && options.EndDate != nil {
+		reqQP.Set("endDate", *options.EndDate)
 	}
 	reqQP.Set("api-version", "2021-10-01")
 	if options != nil && options.Metric != nil {
